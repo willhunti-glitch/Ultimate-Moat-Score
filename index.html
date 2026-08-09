@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UMS 終極護城河指標 — 貼上即算</title>
+<style>
+  :root{
+    --text:#2C2C2B; --sec:#7D7A75; --canvas:#FFFFFF; --soft:#F9F8F7;
+    --surface:#F0EFED; --border:#E6E5E3; --blue:#2783DE; --blue-s:#E5F2FC;
+    --green:#46A171; --green-s:#E8F1EC; --orange:#D5803B; --orange-s:#FBEBDE;
+    --red:#E56458; --red-s:#FCE9E7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--text);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 16px 48px}
+  h1{font-size:26px;line-height:1.25;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--sec);font-size:14px;margin:0 0 24px}
+  .panel{border:1px solid var(--border);border-radius:12px;background:var(--soft);padding:16px}
+  textarea{width:100%;height:132px;border:1px solid var(--border);border-radius:8px;padding:12px;
+    font:13px/1.5 Menlo,Consolas,monospace;background:var(--canvas);color:var(--text);resize:vertical}
+  textarea:focus{outline:2px solid var(--blue);outline-offset:1px}
+  .bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  button{min-height:44px;padding:0 20px;border-radius:8px;border:1px solid var(--border);
+    background:var(--canvas);color:var(--text);font-size:15px;cursor:pointer}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+  button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .hint{color:var(--sec);font-size:13px}
+  .scroller{margin-top:24px;overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;white-space:nowrap}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right}
+  /* 燈號欄永遠釘在右側，避免被容器截掉 */
+  th:last-child,td:last-child{position:sticky;right:0;background:var(--canvas);z-index:2;
+    box-shadow:-8px 0 8px -8px rgba(0,0,0,.18)}
+  thead th:last-child{background:var(--surface);z-index:4}
+  tbody tr:hover td:last-child{background:var(--soft)}
+  /* 精簡模式：隱藏分項 S/T 欄位 */
+  table.compact th:nth-child(6),table.compact td:nth-child(6),
+  table.compact th:nth-child(7),table.compact td:nth-child(7),
+  table.compact th:nth-child(9),table.compact td:nth-child(9),
+  table.compact th:nth-child(10),table.compact td:nth-child(10){display:none}
+  th:nth-child(1),th:nth-child(2),td:nth-child(1),td:nth-child(2){text-align:left}
+  thead th{background:var(--surface);font-size:12px;letter-spacing:.03em;color:var(--sec);
+    font-weight:600;position:sticky;top:0;cursor:pointer;user-select:none;transition:background .12s}
+  thead th:hover{background:#E7E5E2;color:var(--text)}
+  thead th:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+  thead th[aria-sort="ascending"],thead th[aria-sort="descending"]{color:var(--blue);background:var(--blue-s)}
+  .arw{display:inline-block;width:12px;margin-left:4px;opacity:.35;font-size:10px}
+  th[aria-sort="ascending"] .arw,th[aria-sort="descending"] .arw{opacity:1}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--soft)}
+  .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600}
+  .g{background:var(--green-s);color:#2f6f4d}
+  .o{background:var(--orange-s);color:#9a5a24}
+  .r{background:var(--red-s);color:#a83e34}
+  .b{background:var(--blue-s);color:#1c5f9f}
+  .num{font-variant-numeric:tabular-nums}
+  .legend{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+  .card{border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--canvas)}
+  .card h3{margin:0 0 6px;font-size:13px;letter-spacing:.03em;color:var(--sec);font-weight:600}
+  .card p{margin:0;font-size:13px;color:var(--text)}
+  .err{color:#a83e34;font-size:13px;margin-top:8px}
+  @media (max-width:640px){.wrap{padding:24px 16px 48px}h1{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>UMS 終極護城河指標</h1>
+  <p class="sub">貼上撿股讚匯出的欄位（代號→3年平均營收成長率），自動算出穩定係數 S、趨勢係數 T、純度 P 與燈號。<strong>點任一表頭可排序</strong>（再點一次反向，第三次回到原始順序）。</p>
+
+  <div class="panel">
+    <textarea id="in" spellcheck="false" aria-label="貼上股票資料"></textarea>
+    <div class="bar">
+      <button class="primary" id="run">計算燈號</button>
+      <button id="demo">載入範例</button>
+      <button id="copy">複製結果 (TSV)</button>
+      <label class="hint" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="det"> 顯示分項 S毛利／S營益／T毛利／T營益
+      </label>
+      <span class="hint">欄位順序：代號｜公司｜股價｜4年ROE｜毛利率 5/4/3/2 年｜營益率 5/4/3/2 年｜3年營收成長率</span>
+    </div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <div class="scroller"><table id="out" class="compact">
+    <thead><tr id="hdr"></tr></thead>
+    <tbody></tbody>
+  </table></div>
+
+  <div class="legend">
+    <div class="card"><h3>穩定係數 S</h3><p>1 − 四期標準差 ÷ 平均，取毛利率與營益率較差者。<br>≥0.95 穩｜0.90–0.95 波動｜&lt;0.90 漏水</p></div>
+    <div class="card"><h3>趨勢係數 T</h3><p>2 年平均 ÷ 5 年平均，毛利率與營益率取平均。<br>≥1.03 擴張 ×1.10｜0.97–1.03 持平 ×1.00｜&lt;0.97 侵蝕 ×0.85</p></div>
+    <div class="card"><h3>純度 P</h3><p>2 年平均營益率 ÷ 2 年平均毛利率。<br>≥0.70 真護城河｜0.50–0.70 尚可｜&lt;0.50 高毛利被費用吃掉，扣 5 分</p></div>
+    <div class="card"><h3>UMS 分級</h3><p>≥85 S 級核心部位｜70–84 A 級等買點｜55–69 B 級追蹤｜&lt;55 淘汰。<br>僅含體質面（護城河 60＋成長 15），殖利率／流動比／技術面需自行加計 25 分。</p></div>
+  </div>
+</div>
+
+<script>
+const DEMO = `2330\t台積電\t2425\t31.35\t54.95\t55.42\t56.68\t55.24\t44.22\t44.7\t45.95\t44.16\t24
+3218\t大學光\t132.5\t31.42\t61.01\t60.83\t60.38\t59.95\t30.88\t31.34\t32.05\t32.6\t17.72
+3293\t鈊象\t776\t59\t96.09\t96.13\t96.19\t96.28\t52.2\t52.68\t53.06\t54.47\t18.37
+3529\t力旺\t2475\t51.98\t100\t100\t100\t100\t53.64\t55.47\t56.07\t55.29\t16.38
+4728\t雙美\t383\t40.72\t83.6\t84.02\t83.24\t82.26\t46.62\t48.57\t52.94\t51.99\t21.16
+4763\t材料-KY\t48.25\t51.97\t45.74\t48.8\t55.06\t62.87\t34.28\t37.54\t45.73\t55.99\t86.01
+5508\t永信建\t50.2\t37.42\t44.69\t47.2\t48.65\t47.31\t39.01\t41.94\t43.51\t42.44\t29.83
+7734\t印能科技\t3370\t43.2\t66.39\t66.16\t65.39\t65.31\t49.2\t48.67\t47.61\t48.31\t24.57`;
+
+const COLS = [
+  {k:'code', t:'代號',    ty:'s', d:'asc'},
+  {k:'name', t:'公司',    ty:'s', d:'asc'},
+  {k:'price',t:'股價',    ty:'n', d:'desc'},
+  {k:'roe',  t:'ROE',     ty:'n', d:'desc'},
+  {k:'g3',   t:'營收成長',ty:'n', d:'desc'},
+  {k:'Sgm',  t:'S毛利',   ty:'n', d:'desc'},
+  {k:'Sop',  t:'S營益',   ty:'n', d:'desc'},
+  {k:'S',    t:'穩定 S',  ty:'n', d:'desc'},
+  {k:'Tg',   t:'T毛利',   ty:'n', d:'desc'},
+  {k:'To',   t:'T營益',   ty:'n', d:'desc'},
+  {k:'T',    t:'趨勢 T',  ty:'n', d:'desc'},
+  {k:'P',    t:'純度 P',  ty:'n', d:'desc'},
+  {k:'ums',  t:'UMS',     ty:'n', d:'desc'},
+  {k:'ums',  t:'燈號',    ty:'n', d:'desc'},
+];
+
+const num = v => parseFloat(String(v).replace(/[,%\s]/g,''));
+const stab = a => { const m=a.reduce((x,y)=>x+y,0)/a.length; if(!m) return 0;
+  const sd=Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length); return 1-sd/m; };
+const tag=(cls,txt)=>`<span class="tag ${cls}">${txt}</span>`;
+
+function parse(text){
+  const rows=[],bad=[];
+  text.trim().split(/\r?\n/).forEach((ln,i)=>{
+    if(!ln.trim()) return;
+    const c=ln.split(/\t|,|\s{2,}/).map(s=>s.trim()).filter(s=>s!=='');
+    if(c.length<13){ bad.push(i+1); return; }
+    const n=c.slice(2,13).map(num);
+    if(n.some(isNaN)) { bad.push(i+1); return; }
+    rows.push({code:c[0],name:c[1],price:n[0],roe:n[1],gm:n.slice(2,6),op:n.slice(6,10),g3:n[10]});
+  });
+  return {rows,bad};
+}
+
+function score(r){
+  const Sgm=stab(r.gm), Sop=stab(r.op), S=Math.min(Sgm,Sop);
+  const Tg=r.gm[3]/r.gm[0], To=r.op[3]/r.op[0], T=(Tg+To)/2;
+  const tf = T>=1.03?1.10 : T>=0.97?1.00 : 0.85;
+  const P=r.op[3]/r.gm[3];
+  const cnt=(a,t)=>a.filter(v=>v>=t).length;
+  const sc={4:1,3:.7,2:.4};
+  const gmS=20*(sc[cnt(r.gm,40)]||0), opS=20*(sc[cnt(r.op,30)]||0);
+  const roeS=r.roe>=30?20:r.roe>=20?10:0;
+  const grow=r.g3>=15?15:r.g3>=10?8:0;
+  const pen=P<0.5?5:0;
+  const ums=Math.min(100,((gmS+opS+roeS)*S*tf+grow-pen)/75*100);
+  return Object.assign({},r,{Sgm,Sop,S,Tg,To,T,P,ums});
+}
+
+const lightS=v=>v>=.95?tag('g','穩'):v>=.90?tag('o','波動'):tag('r','漏水');
+const lightT=v=>v>=1.03?tag('g','擴張'):v>=.97?tag('o','持平'):tag('r','侵蝕');
+const lightP=v=>v>=.70?tag('g',v.toFixed(2)):v>=.50?tag('o',v.toFixed(2)):tag('r',v.toFixed(2));
+const grade=u=>u>=85?tag('b','S 核心'):u>=70?tag('g','A 等買點'):u>=55?tag('o','B 觀察'):tag('r','淘汰');
+
+let DATA=[], sortIdx=null, sortDir=null;
+
+function buildHeader(){
+  const tr=document.getElementById('hdr');
+  tr.innerHTML='';
+  COLS.forEach((c,i)=>{
+    const th=document.createElement('th');
+    th.tabIndex=0; th.scope='col';
+    th.innerHTML=`${c.t}<span class="arw">▾</span>`;
+    th.title=`依【${c.t}】排序`;
+    const act=()=>toggleSort(i);
+    th.onclick=act;
+    th.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); act(); } };
+    tr.appendChild(th);
+  });
+}
+
+function toggleSort(i){
+  if(sortIdx!==i){ sortIdx=i; sortDir=COLS[i].d; }
+  else if(sortDir===COLS[i].d){ sortDir = COLS[i].d==='desc'?'asc':'desc'; }
+  else { sortIdx=null; sortDir=null; }
+  paint();
+}
+
+function paint(){
+  document.querySelectorAll('#hdr th').forEach((th,i)=>{
+    if(i===sortIdx){
+      th.setAttribute('aria-sort', sortDir==='asc'?'ascending':'descending');
+      th.querySelector('.arw').textContent = sortDir==='asc'?'▴':'▾';
+    } else { th.removeAttribute('aria-sort'); th.querySelector('.arw').textContent='▾'; }
+  });
+
+  let rows=DATA.slice();
+  if(sortIdx!==null){
+    const c=COLS[sortIdx], sgn = sortDir==='asc'?1:-1;
+    rows.sort((a,b)=>{
+      const x=a[c.k], y=b[c.k];
+      if(c.ty==='s') return sgn*String(x).localeCompare(String(y),'zh-Hant',{numeric:true});
+      return sgn*((x||0)-(y||0));
+    });
+  }
+
+  const tb=document.querySelector('#out tbody'); tb.innerHTML='';
+  if(!rows.length){
+    tb.innerHTML=`<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--sec);padding:28px">貼上資料後按「計算燈號」</td></tr>`;
+    return;
+  }
+  rows.forEach(s=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${s.code}</td><td>${s.name}</td>
+      <td class="num">${s.price}</td><td class="num">${s.roe}</td><td class="num">${s.g3}</td>
+      <td class="num">${s.Sgm.toFixed(3)}</td><td class="num">${s.Sop.toFixed(3)}</td>
+      <td class="num">${s.S.toFixed(3)} ${lightS(s.S)}</td>
+      <td class="num">${s.Tg.toFixed(3)}</td><td class="num">${s.To.toFixed(3)}</td>
+      <td class="num">${s.T.toFixed(3)} ${lightT(s.T)}</td>
+      <td class="num">${lightP(s.P)}</td>
+      <td class="num"><strong>${s.ums.toFixed(1)}</strong></td>
+      <td>${grade(s.ums)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function render(){
+  const {rows,bad}=parse(document.getElementById('in').value);
+  document.getElementById('err').textContent = bad.length? `第 ${bad.join('、')} 行欄位不足或非數字，已略過。` : '';
+  DATA = rows.map(score);
+  paint();
+}
+
+document.getElementById('run').onclick=render;
+document.getElementById('demo').onclick=()=>{document.getElementById('in').value=DEMO;render();};
+document.getElementById('copy').onclick=()=>{
+  const hdr=['代號','公司','穩定S','趨勢T','純度P','UMS'].join('\t');
+  const body=Array.from(document.querySelectorAll('#out tbody tr')).map(tr=>{
+    const c=tr.children;
+    return [c[0],c[1],c[7],c[10],c[11],c[12]].map(td=>td.textContent.replace(/\s*(穩|波動|漏水|擴張|持平|侵蝕)\s*/g,'').trim()).join('\t');
+  }).join('\n');
+  navigator.clipboard && navigator.clipboard.writeText(hdr+'\n'+body);
+};
+
+document.getElementById('det').onchange=e=>{
+  document.getElementById('out').classList.toggle('compact', !e.target.checked);
+};
+
+buildHeader();
+document.getElementById('in').value=DEMO;
+render();
+</script>
+</body>
+</html>
